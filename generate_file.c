@@ -1,3 +1,9 @@
+// How to RUN!!! 
+//gcc -o generate_file generate_file.c
+//./generate_file 10000 50
+//This generates 10,000 integers(L) and 50 hidden keys(H)
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
