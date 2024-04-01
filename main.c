@@ -1,31 +1,45 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "generate_file.h"  // Corrected include
+#include "generate_file.h" // For generating the input data file
+// Include other headers as necessary
+#include "ProcessManagement.h"
+#include "IPC.h"
+#include "DataProcessing.h"
 
 int main(int argc, char *argv[]) {
-    // Assuming L, H, and possibly PN are passed as command-line arguments
-    if (argc < 3) {
-        printf("Usage: %s <L> <H>\n", argv[0]);
-        return 1;
+    if (argc < 4) {
+        fprintf(stderr, "Usage: %s <L> <H> <PN>\n", argv[0]);
+        return EXIT_FAILURE;
     }
 
     int L = atoi(argv[1]);
     int H = atoi(argv[2]);
+    int PN = atoi(argv[3]); // Number of processes
 
-    // Validate L and H
-    if (L < 10000 || H < 30 || H > 60) {
-        printf("Invalid arguments. Ensure L >= 10000 and 30 <= H <= 60.\n");
-        return 1;
+    // Validate inputs
+    if (L < 10000 || H < 30 || H > 60 || PN < 1) {
+        fprintf(stderr, "Invalid arguments.\n");
+        return EXIT_FAILURE;
     }
 
-    generateFile(L, H);  // This function generates the file as per the provided arguments.
+    // Generate the file with positive integers and hidden keys
+    generateFile(L, H);
 
-    // At this point, if you had other operations (like reading the file back into an array,
-    // processing the data, etc.), you would implement them here.
-    // For example, to demonstrate, let's pretend we have a function to read the file and process it,
-    // which would be declared in another header file and implemented elsewhere.
-    // readFileAndProcess("input.txt"); // Hypothetical function
+    // Now, to read the generated file and process it
+    // int size = L + H; // Assuming the array size needed to hold all data including hidden keys
+    // int *array = readFileIntoArray("input.txt", &size); // Implementation needed
 
-    return 0;
+    // Assuming you have functions to partition data and distribute work among processes
+    // Here you would partition your data based on PN and use IPC mechanisms to distribute tasks
+    // distributeWork(array, size, PN); // Hypothetical function, implementation needed
+
+    // After processing, you might collect results and possibly write them to an output file
+    // This step would depend on how you implement IPC and data collection among processes
+    // collectResultsAndWriteToFile("output.txt"); // Hypothetical function, implementation needed
+
+    // Don't forget to free any dynamically allocated memory (if readFileIntoArray was implemented and used)
+    // free(array);
+
+    return EXIT_SUCCESS;
 }
 
