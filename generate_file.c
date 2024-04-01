@@ -47,6 +47,16 @@ void generateFile(int L, int H) {
     free(numbers);
 }
 
+void writeResultsToFile(const char *filename, const char *results) {
+    FILE *file = fopen(filename, "w");
+    if (!file) {
+        perror("Error opening file for writing");
+        exit(EXIT_FAILURE);
+    }
+    fprintf(file, "%s", results);
+    fclose(file);
+}
+
 int main(int argc, char *argv[]) {
     // Assuming L, H, and possibly PN are passed as command-line arguments
     // Check for the correct number of arguments
