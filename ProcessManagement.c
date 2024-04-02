@@ -102,4 +102,4 @@ void createProcessTree(int *data, int size, int pn, int startIndex, int depth, i
     childResult_t childResults;
     if (read(pipefds[0], &childResults, sizeof(childResult_t)) == -1) {
       perror("read");
-      exit(EXIT
+      exit(EXIT)
