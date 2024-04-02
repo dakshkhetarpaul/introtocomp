@@ -1,36 +1,58 @@
-// IPC.c
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <string.h>
+#include "IPC.h"
 
-void setupIPC() {
-    int pipefds[2];
-    if (pipe(pipefds) == -1) {
-        perror("pipe");
-        exit(EXIT_FAILURE);
-    }
+void setupPipe(int fd[2]) {
+  if (pipe(fd) == -1) {
+    perror("pipe");
+    exit(EXIT_FAILURE);
+  }
+}
 
-    pid_t pid = fork();
+void sendSegment(int fd[2], int *data, int size) {
+  if (write(fd[1], &size, sizeof(int)) == -1) {
+    perror("write");
+    exit(EXIT_FAILURE);
+  }
+  if (write(fd[1], data, sizeof(int) * size) == -1) {
+    perror("write");
+    exit(EXIT_FAILURE);
+  }
+  close(fd[1]); // Close write end after sending data
+}
 
-    if (pid == -1) {
-        perror("fork");
-        exit(EXIT_FAILURE);
-    }
+int receiveSegment(int fd[2], int *data, int maxSize) {
+  int receivedSize;
+  if (read(fd[0], &receivedSize, sizeof(int)) == -1) {
+    perror("read");
+    exit(EXIT_FAILURE);
+  }
+  if (receivedSize > maxSize) {
+    fprintf(stderr, "Received segment size (%d) exceeds maximum size (%d)\n", receivedSize, maxSize);
+    return -1; // Handle potential size mismatch
+  }
+  if (read(fd[0], data, sizeof(int) * receivedSize) == -1) {
+    perror("read");
+    exit(EXIT_FAILURE);
+  }
+  close(fd[0]); // Close read end after receiving data
+  return receivedSize; // Return the actual size of received data
+}
 
-    if (pid == 0) {
-        close(pipefds[1]); // Close the write-end of the pipe, child doesn't write.
-        // Child process reads from the pipe
-        char buffer[1024];
-        read(pipefds[0], buffer, sizeof(buffer));
-        printf("Child reads: %s\n", buffer);
-        close(pipefds[0]);
-    } else {
-        close(pipefds[0]); // Close the read-end of the pipe, parent doesn't read.
-        // Parent process writes to the pipe
-        const char *msg = "Hello from your parent!\n";
-        write(pipefds[1], msg, strlen(msg) + 1);
-        close(pipefds[1]);
-        wait(NULL); // Wait for child process to finish
-    }
+void sendResults(int fd[2], childResult_t results) {
+  if (write(fd[1], &results, sizeof(childResult_t)) == -1) {
+    perror("write");
+    exit(EXIT_FAILURE);
+  }
+  close(fd[1]); // Close write end after sending results
+}
+
+int receiveResults(int fd[2], childResult_t *results) {
+  if (read(fd[0], results, sizeof(childResult_t)) == -1) {
+    perror("read");
+    exit(EXIT_FAILURE);
+  }
+  close(fd[0]); // Close read end after receiving results
+  return 0;
 }
