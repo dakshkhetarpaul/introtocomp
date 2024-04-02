@@ -1,45 +1,67 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "generate_file.h" // For generating the input data file
-// Include other headers as necessary
-#include "ProcessManagement.h"
-#include "IPC.h"
-#include "DataProcessing.h"
+#include "ProcessManagement.h" // Likely contains `createProcessTree`
+#include "IPC.h" // Likely contains pipe-related functions
+#include "DataProcessing.h" // Likely contains functions to read data and process segments
 
 int main(int argc, char *argv[]) {
-    if (argc < 4) {
-        fprintf(stderr, "Usage: %s <L> <H> <PN>\n", argv[0]);
-        return EXIT_FAILURE;
-    }
+  if (argc < 4) {
+    fprintf(stderr, "Usage: %s <L> <H> <PN>\n", argv[0]);
+    return EXIT_FAILURE;
+  }
 
-    int L = atoi(argv[1]);
-    int H = atoi(argv[2]);
-    int PN = atoi(argv[3]); // Number of processes
+  int L = atoi(argv[1]);
+  int H = atoi(argv[2]);
+  int PN = atoi(argv[3]); // Number of processes
 
-    // Validate inputs
-    if (L < 10000 || H < 30 || H > 60 || PN < 1) {
-        fprintf(stderr, "Invalid arguments.\n");
-        return EXIT_FAILURE;
-    }
+  // Validate inputs
+  if (L < 10000 || H < 30 || H > 60 || PN < 1) {
+    fprintf(stderr, "Invalid arguments.\n");
+    return EXIT_FAILURE;
+  }
 
-    // Generate the file with positive integers and hidden keys
-    generateFile(L, H);
+  // Generate the file with positive integers and hidden keys
+  generateFile(L, H);
 
-    // Now, to read the generated file and process it
-    // int size = L + H; // Assuming the array size needed to hold all data including hidden keys
-    // int *array = readFileIntoArray("input.txt", &size); // Implementation needed
+  // Read the generated file and get data size
+  int size = getDataSize("input.txt"); // Implement getDataSize to get file size
+  if (size <= 0) {
+    fprintf(stderr, "Error reading data size.\n");
+    return EXIT_FAILURE;
+  }
 
-    // Assuming you have functions to partition data and distribute work among processes
-    // Here you would partition your data based on PN and use IPC mechanisms to distribute tasks
-    // distributeWork(array, size, PN); // Hypothetical function, implementation needed
+  // Allocate memory for the data array
+  int *data = (int*)malloc(size * sizeof(int));
+  if (data == NULL) {
+    perror("malloc failed");
+    return EXIT_FAILURE;
+  }
 
-    // After processing, you might collect results and possibly write them to an output file
-    // This step would depend on how you implement IPC and data collection among processes
-    // collectResultsAndWriteToFile("output.txt"); // Hypothetical function, implementation needed
+  // Read data from the file into the array
+  if (readFileIntoArray("input.txt", data, size) != 0) {
+    fprintf(stderr, "Error reading data from file.\n");
+    free(data);
+    return EXIT_FAILURE;
+  }
 
-    // Don't forget to free any dynamically allocated memory (if readFileIntoArray was implemented and used)
-    // free(array);
+  // Choose partitioning strategy (replace with your implementation)
+  int isBFS = 1; // Change to 0 for DFS
 
-    return EXIT_SUCCESS;
+  // Create the process tree and distribute work
+  int globalMax = INT_MIN, totalHiddenKeys = 0;
+  double globalAvg = 0.0;
+  createProcessTree(data, size, PN, 0, 0, isBFS, &globalMax, &globalAvg, &totalHiddenKeys);
+
+  // Free the allocated memory for the data array
+  free(data);
+
+  // Print or write final results (modify based on your needs)
+  printf("Global Maximum: %d\n", globalMax);
+  printf("Global Average: %.2lf\n", globalAvg);
+  printf("Total Hidden Keys Found: %d\n", totalHiddenKeys);
+
+  // You can write results to a file using fprintf or similar
+
+  return EXIT_SUCCESS;
 }
-
