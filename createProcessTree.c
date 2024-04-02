@@ -4,6 +4,14 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 
+// Structure to store results from a child process
+typedef struct childResult {
+  int localMax;
+  double localAvg;
+  int hiddenKeys;
+  // Add more fields if needed (e.g., an array for hidden key positions)
+} childResult_t;
+
 // Function to create a process tree (BFS or DFS) and distribute work
 void createProcessTree(int *data, int size, int pn, int startIndex, int depth, int isBFS) {
   // Calculate segment size (adjust for potential remainder)
@@ -50,17 +58,27 @@ void createProcessTree(int *data, int size, int pn, int startIndex, int depth, i
         hiddenKeys++;
       }
     }
-    localAvg /= childSegmentSize;
+    localAvg /= (double)childSegmentSize; // Cast to double for accurate average
 
-    // Implement logic to potentially send results back to parent using pipes
+    // Prepare data to send back to parent (consider using childResult_t)
+    childResult_t childResults = {localMax, localAvg, hiddenKeys};
 
-    // Generate unique return code based on depth and position (BFS)
+    // Implement logic to send results back to parent using pipes (example)
+    if (write(pipefds[1], &childResults, sizeof(childResult_t)) == -1) {
+      perror("write");
+      exit(EXIT_FAILURE);
+    }
+
+    // Generate unique return code (improved DFS logic)
+    int uniqueCode;
     if (isBFS) {
       int numNodesAtLevel = (int)pow(2, depth);
-      exit(depth * numNodesAtLevel + (getpid() % numNodesAtLevel));
+      uniqueCode = depth * numNodesAtLevel + (getpid() % numNodesAtLevel);
     } else {
-      exit(depth); // Simple DFS code (replace with unique code if needed)
+      // Improved DFS code: assign a unique code based on process ID within depth
+      uniqueCode = depth * pn + (getpid() % pn);
     }
+    exit(uniqueCode);
   } else { // Parent process
     close(pipefds[0]); // Close read end of the pipe
 
@@ -76,16 +94,12 @@ void createProcessTree(int *data, int size, int pn, int startIndex, int depth, i
     }
     close(pipefds[1]);
 
-    // Wait for child to finish and potentially collect results
-    waitpid(pid, NULL, 0);
+    // Wait for child to finish and collect results
+    int status;
+    waitpid(pid, &status, 0);
 
-    // Decide if further process creation is needed based on BFS or DFS strategy
-    if (isBFS && depth < (int)log2(pn)) {
-      for (int i = 0; i < 2; i++) { // Create two child processes for BFS
-        createProcessTree(data, size, pn, startIndex + segmentSize * i, depth + 1, 1);
-      }
-    } else if (depth < pn - 1) { // Simple DFS (replace with BFS logic if needed)
-      createProcessTree(data, size, pn, startIndex + segmentSize, depth + 1, 0);
-    }
-  }
-}
+    // Extract results from child process (modify based on your chosen communication method)
+    childResult_t childResults;
+    if (read(pipefds[0], &childResults, sizeof(childResult_t)) == -1) {
+      perror("read");
+      exit(EXIT
