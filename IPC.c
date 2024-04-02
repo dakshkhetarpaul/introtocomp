@@ -10,16 +10,18 @@ void setupPipe(int fd[2]) {
   }
 }
 
-void sendSegment(int fd[2], int *data, int size) {
+int sendSegment(int fd[2], int *data, int size) {
   if (write(fd[1], &size, sizeof(int)) == -1) {
     perror("write");
     exit(EXIT_FAILURE);
   }
+
   if (write(fd[1], data, sizeof(int) * size) == -1) {
     perror("write");
     exit(EXIT_FAILURE);
   }
   close(fd[1]); // Close write end after sending data
+  return 0;
 }
 
 int receiveSegment(int fd[2], int *data, int maxSize) {
