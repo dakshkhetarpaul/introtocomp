@@ -10,12 +10,13 @@ typedef struct childResult {
   double localAvg;
   int hiddenKeys;
   int *hiddenKeyPositions; // Array to store hidden key positions (assuming unique)
-  int numHiddenKeys;      // Number of hidden keys found (optional, for efficiency)
+  int numHiddenKeys;       // Number of hidden keys found (optional, for efficiency)
 } childResult_t;
 
 // Function to create a process tree (BFS or DFS) and distribute work
 void createProcessTree(int *data, int size, int pn, int startIndex, int depth, int isBFS,
-                       int *globalMax, double *globalAvg, int *totalHiddenKeys) {
+                        int *globalMax, double *globalAvg, int *totalHiddenKeys) {
+
   // Calculate segment size (adjust for potential remainder)
   int segmentSize = size / pn;
   if (size % pn != 0) {
@@ -37,7 +38,7 @@ void createProcessTree(int *data, int size, int pn, int startIndex, int depth, i
   } else if (pid == 0) { // Child process
     close(pipefds[1]); // Close write end of the pipe
 
-    // Receive data segment from parent
+    // Receive data segment size from parent
     int childSegmentSize;
     if (read(pipefds[0], &childSegmentSize, sizeof(int)) == -1) {
       perror("read");
@@ -94,7 +95,7 @@ void createProcessTree(int *data, int size, int pn, int startIndex, int depth, i
     printf("Hi I'm process %d with return arg %d and my parent is %d.\n",
            getpid(), uniqueCode, getppid());
 
-     if (childResults.hiddenKeys > 0) {
+    if (childResults.hiddenKeys > 0) {
       printf("Hi I'm process %d with return arg %d. I found hidden keys in positions:\n",
              getpid(), uniqueCode);
       for (int i = 0; i < childResults.hiddenKeys; i++) {
@@ -102,7 +103,9 @@ void createProcessTree(int *data, int size, int pn, int startIndex, int depth, i
       }
     }
 
-    free(hiddenKeyPositions); // Free allocated memory for hidden key positions
+     free(hiddenKeyPositions);
+
+    // Exit with unique code
     exit(uniqueCode);
   } else { // Parent process
     close(pipefds[0]); // Close read end of the pipe
@@ -125,7 +128,36 @@ void createProcessTree(int *data, int size, int pn, int startIndex, int depth, i
 
     // Extract results from child process (modify based on your chosen communication method)
     childResult_t childResults;
-    if (read(pipefds[0], &childResults, sizeof(childResult_t)) == -1) {
-      perror("read");
-      exit(EXIT_FAILURE);
+    if (WIFEXITED(status)) { // Check if child exited normally
+      childResults = *(childResult_t *) (&status); // Extract results from exit status (assuming unique code structure)
+    } else {
+      perror("child process terminated abnormally");
+      // Handle abnormal termination (optional)
     }
+
+    // Update global results based on child's results
+    if (childResults.localMax > *globalMax) {
+      *globalMax = childResults.localMax;
+    }
+    *globalAvg += childResults.localAvg;
+    *totalHiddenKeys += childResults.numHiddenKeys;
+
+    // If more processes are needed (BFS or recursive DFS), create them
+    if (pn > 1) {
+      int nextStartIndex = startIndex + segmentSize;
+      if (isBFS) { // BFS - Create processes for all remaining segments
+        for (int i = 1; i < pn && nextStartIndex < size; ++i) {
+          createProcessTree(data, size, pn, nextStartIndex, depth, isBFS, globalMax, globalAvg, totalHiddenKeys);
+          nextStartIndex += segmentSize;
+        }
+      } else { // DFS - Create process for one child (depth-first)
+        if (depth < pn - 1) {
+          createProcessTree(data, size, pn, nextStartIndex, depth + 1, isBFS, globalMax, globalAvg, totalHiddenKeys);
+        }
+      }
+    }
+  }
+
+  // Close remaining pipe (write end for parent after child process)
+  close(pipefds[1]);
+}
