@@ -9,11 +9,13 @@ typedef struct childResult {
   int localMax;
   double localAvg;
   int hiddenKeys;
-  // Add more fields if needed (e.g., an array for hidden key positions)
+  int *hiddenKeyPositions; // Array to store hidden key positions (assuming unique)
+  int numHiddenKeys;      // Number of hidden keys found (optional, for efficiency)
 } childResult_t;
 
 // Function to create a process tree (BFS or DFS) and distribute work
-void createProcessTree(int *data, int size, int pn, int startIndex, int depth, int isBFS) {
+void createProcessTree(int *data, int size, int pn, int startIndex, int depth, int isBFS,
+                       int *globalMax, double *globalAvg, int *totalHiddenKeys) {
   // Calculate segment size (adjust for potential remainder)
   int segmentSize = size / pn;
   if (size % pn != 0) {
@@ -51,17 +53,26 @@ void createProcessTree(int *data, int size, int pn, int startIndex, int depth, i
     // Process the assigned data segment
     int localMax = INT_MIN, localAvg = 0;
     int hiddenKeys = 0;
+
+    // Allocate memory for hidden key positions (assuming unique)
+    int *hiddenKeyPositions = (int *)malloc(childSegmentSize * sizeof(int));
+    if (hiddenKeyPositions == NULL) {
+      perror("malloc failed");
+      exit(EXIT_FAILURE);
+    }
+
     for (int i = 0; i < childSegmentSize; i++) {
       localMax = fmax(localMax, childData[i]);
       localAvg += childData[i];
       if (childData[i] < 0) {
         hiddenKeys++;
+        hiddenKeyPositions[hiddenKeys - 1] = startIndex + i; // Store position relative to start index
       }
     }
     localAvg /= (double)childSegmentSize; // Cast to double for accurate average
 
     // Prepare data to send back to parent (consider using childResult_t)
-    childResult_t childResults = {localMax, localAvg, hiddenKeys};
+    childResult_t childResults = {localMax, localAvg, hiddenKeys, hiddenKeyPositions, hiddenKeys};
 
     // Implement logic to send results back to parent using pipes (example)
     if (write(pipefds[1], &childResults, sizeof(childResult_t)) == -1) {
@@ -78,6 +89,20 @@ void createProcessTree(int *data, int size, int pn, int startIndex, int depth, i
       // Improved DFS code: assign a unique code based on process ID within depth
       uniqueCode = depth * pn + (getpid() % pn);
     }
+
+    // **Print child process information**
+    printf("Hi I'm process %d with return arg %d and my parent is %d.\n",
+           getpid(), uniqueCode, getppid());
+
+     if (childResults.hiddenKeys > 0) {
+      printf("Hi I'm process %d with return arg %d. I found hidden keys in positions:\n",
+             getpid(), uniqueCode);
+      for (int i = 0; i < childResults.hiddenKeys; i++) {
+        printf("  - Position: %d\n", childResults.hiddenKeyPositions[i]);
+      }
+    }
+
+    free(hiddenKeyPositions); // Free allocated memory for hidden key positions
     exit(uniqueCode);
   } else { // Parent process
     close(pipefds[0]); // Close read end of the pipe
@@ -102,4 +127,5 @@ void createProcessTree(int *data, int size, int pn, int startIndex, int depth, i
     childResult_t childResults;
     if (read(pipefds[0], &childResults, sizeof(childResult_t)) == -1) {
       perror("read");
-      exit(EXIT)
+      exit(EXIT_FAILURE);
+    }
