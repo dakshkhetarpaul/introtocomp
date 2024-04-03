@@ -30,4 +30,3 @@ int readFileIntoArray(const char *filename, int *data, int size) {
   fclose(file);
   return numRead; // May be less than size if EOF is reached before reading all elements
 }
-
