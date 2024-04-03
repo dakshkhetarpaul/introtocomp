@@ -20,8 +20,8 @@
 typedef struct childResult childResult_t;
 
 void setupPipe(int fd[2]);
-void sendResults(int fd[2], childResult_t results);
-int receiveResults(int fd[2], childResult_t *results);
+void sendResults(int write_fd, int max, double avg, int hiddenKeys);
+int receiveResults(int read_fd, int *max, double *avg, int *hiddenKeys);
 
 #endif // IPC_H
 
