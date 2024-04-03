@@ -1,11 +1,11 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/types.h>
-#include "ProcessManagement.h"
+#include <signal.h>
 #include <limits.h>
+#include "ProcessManagement.h"
 
 void performWork(int *data, int segmentSize, int *max, double *avg, int *hiddenKeys) {
     // Placeholder for actual data processing
@@ -52,6 +52,10 @@ void createProcessTree(int *data, int size, int pn, int startIndex, int depth, i
             write(pipefds[1], &hiddenKeys, sizeof(int));
             
             close(pipefds[1]); // Close the write end
+            
+            // Pause the child
+            raise(SIGTSTP);
+
             exit(0); // Exit successfully
         } else { // Parent process
             close(pipefds[1]); // Close the write end; parent won't write to pipe
@@ -73,5 +77,3 @@ void createProcessTree(int *data, int size, int pn, int startIndex, int depth, i
 
     // Code to aggregate results and update globalMax, globalAvg, and totalHiddenKeys
 }
-
-// Main function and further setup are required to fully implement the project specifications.
