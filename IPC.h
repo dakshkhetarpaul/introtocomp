@@ -1,4 +1,4 @@
-// #ifndef IPC_H
+/// #ifndef IPC_H
 // #define IPC_H
 
 // void setupPipe(int fd[2]);
