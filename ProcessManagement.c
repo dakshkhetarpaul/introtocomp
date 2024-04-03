@@ -38,12 +38,17 @@ void createProcessTree(int *data, int size, int pn, int startIndex, int depth, i
             perror("fork");
             exit(EXIT_FAILURE);
         } else if (pid == 0) { // Child process
-            close(pipefds[1]); // Close the write end; child won't write to pipe
+          // Child process
+            close(pipefds[0]); // Close the read end; child won't read from pipe
+
+            // Read the starting index of the data segment from the parent
+            int startIndex;
+            read(pipefds[0], &startIndex, sizeof(int));
 
             // Read data from the parent
             int segmentData[segmentSize];
             read(pipefds[0], segmentData, sizeof(int) * segmentSize);
-            close(pipefds[0]); // Close the read end
+            // No need to close pipefds[0] here; we still need it to read data from parent
 
             // Perform actual work on the data segment
             int max;
@@ -55,15 +60,18 @@ void createProcessTree(int *data, int size, int pn, int startIndex, int depth, i
             write(pipefds[1], &max, sizeof(int));
             write(pipefds[1], &avg, sizeof(double));
             write(pipefds[1], &hiddenKeys, sizeof(int));
-            
-            close(pipefds[1]); // Close the write end
+            close(pipefds[1]); // Close the write end after sending results
+
             exit(0); // Exit successfully
         } else { // Parent process
             close(pipefds[0]); // Close the read end; parent won't read from pipe
             
+            // Send the starting index of the data segment to the child
+            write(pipefds[1], &startIndex, sizeof(int));
+
             // Send data to child
             write(pipefds[1], data + startIndex + i * segmentSize, sizeof(int) * segmentSize);
-            close(pipefds[1]); // Close the write end
+            close(pipefds[1]); // Close the write end after sending data
 
             if (!isBFS) {
                 // DFS: Wait for each child to complete
@@ -83,3 +91,4 @@ void createProcessTree(int *data, int size, int pn, int startIndex, int depth, i
 
     // Code to aggregate results and update globalMax, globalAvg, and totalHiddenKeys
 }
+
