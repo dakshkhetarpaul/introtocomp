@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include "IPC.h"
+#include "ProcessManagement.h"
 
 void setupPipe(int fd[2]) {
   if (pipe(fd) == -1) {
