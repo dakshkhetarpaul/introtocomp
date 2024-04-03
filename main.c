@@ -1,68 +1,71 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include "ProcessManagement.h"
 #include "generate_file.h"
 #include "data_processing.h"
-#include "ProcessManagement.h"
+#include <string.h>
+
 
 int main(int argc, char *argv[]) {
-  // Assuming L, H, and PN are passed as command-line arguments
-  // Check for the correct number of arguments
-  if (argc < 4) {
-    printf("Usage: %s <L> <H> <PN>\n", argv[0]);
-    return 1;
-  }
-
-  int L = atoi(argv[1]);
-  int H = atoi(argv[2]);
-  int pn = atoi(argv[3]);
-
-  // Validate L, H, and PN
-  if (L < 10000 || H < 30 || H > 60 || pn < 1) {
-    printf("Invalid arguments. Ensure L >= 10000, 30 <= H <= 60, and PN >= 1.\n");
-    return 1;
-  }
-
-  // Generate the data file with L positive integers and H hidden keys
-  generateFile(L, H);
-
-  // Get the size of the data file
-  int dataSize = getDataSize("input.txt");
-  if (dataSize == -1) {
-    perror("getDataSize");
-    return 1;
-  }
-
-  // Allocate memory for the data array
-  int *data = (int *)malloc(sizeof(int) * dataSize);
-  if (data != NULL) {
-
-    // Read data from the file into the array
-    if (readFileIntoArray("input.txt", data, dataSize) != dataSize) {
-      perror("readFileIntoArray");
-      free(data);
-      return 1;
+    if (argc < 4) {
+        printf("Usage: %s <L> <H> <PN>\n", argv[0]);
+        return 1;
     }
 
-    // Initialize variables for global results
-    int globalMax = data[0];
-    double globalAvg = 0;
-    int totalHiddenKeys = 0;
+    int L = atoi(argv[1]);
+    int H = atoi(argv[2]);
+    int PN = atoi(argv[3]);
 
-    // Create a process tree for distributed processing (BFS by default)
-    createProcessTree(data, dataSize, pn, 0, 0, 1, &globalMax, &globalAvg, &totalHiddenKeys);
+    // Validate inputs
+    if (L < 10000 || H < 30 || H > 60 || PN < 1) {
+        printf("Invalid arguments. Ensure L >= 10000, 30 <= H <= 60, and PN >= 1.\n");
+        return 1;
+    }
 
-    // Free allocated memory
-    free(data);
+    // Generate the data file with L positive integers and H hidden keys
+    generateFile(L, H);
+
+    // Get the size of the data file
+    int dataSize = getDataSize("input.txt");
+    if (dataSize == -1) {
+        perror("Failed to get data size");
+        return 1;
+    }
+    
+    // Allocate memory for the data array
+    int *data = (int *)malloc(sizeof(int) * dataSize);
+    if (!data) {
+        perror("Failed to allocate memory for data");
+        return 1;
+    }
+
+    // Read data from the file into the array
+    if (readFileIntoArray("input.txt", data, dataSize) < 0) {
+        perror("Failed to read file into array");
+        free(data);
+        return 1;
+    }
+
+    // Initialize global results
+    int globalMax = data[0]; // Placeholder initialization
+    double globalAvg = 0; // Placeholder initialization
+    int totalHiddenKeys = 0; // Placeholder initialization
+
+    // Create a process tree and distribute work
+    // Note: You need to implement or adjust createProcessTree according to your project specifics
+    // This may involve iterating over segments of data and creating child processes for each segment
+    createProcessTree(data, dataSize, PN, 0, 0, 1, &globalMax, &globalAvg, &totalHiddenKeys);
+
+
+    // After all processes complete
+    // Here you would compile results from all child processes
+    // This might involve reading results from IPC mechanisms and aggregating them
 
     // Print final results
     printf("Global Maximum: %d\n", globalMax);
-    printf("Global Average (rounded to two decimal places): %.2f\n", globalAvg);
+    printf("Global Average: %.2f\n", globalAvg / dataSize); // Assuming the average needs to be calculated
     printf("Total Hidden Keys Found: %d\n", totalHiddenKeys);
-  } else {
-    perror("malloc");
-    return 1;
-  }
 
-  return 0;
+    free(data);
+    return 0;
 }

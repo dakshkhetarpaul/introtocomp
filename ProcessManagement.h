@@ -1,8 +1,6 @@
 #ifndef PROCESS_MANAGEMENT_H
 #define PROCESS_MANAGEMENT_H
 
-#include "IPC.h"
-
 // Structure to store results from a child process
 typedef struct childResult {
   int localMax;
