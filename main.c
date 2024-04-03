@@ -4,7 +4,7 @@
 #include "generate_file.h"
 #include "data_processing.h"
 #include <string.h>
-
+#include <signal.h>
 
 int main(int argc, char *argv[]) {
     if (argc < 4) {
