@@ -38,13 +38,18 @@ void createProcessTree(int *data, int size, int pn, int startIndex, int depth, i
             perror("fork");
             exit(EXIT_FAILURE);
         } else if (pid == 0) { // Child process
-            close(pipefds[0]); // Close the read end; child won't read from pipe
+            close(pipefds[1]); // Close the write end; child won't write to pipe
+
+            // Read data from the parent
+            int segmentData[segmentSize];
+            read(pipefds[0], segmentData, sizeof(int) * segmentSize);
+            close(pipefds[0]); // Close the read end
 
             // Perform actual work on the data segment
             int max;
             double avg;
             int hiddenKeys;
-            performWork(data + startIndex + i * segmentSize, segmentSize, &max, &avg, &hiddenKeys);
+            performWork(segmentData, segmentSize, &max, &avg, &hiddenKeys);
 
             // Send results to parent
             write(pipefds[1], &max, sizeof(int));
@@ -54,7 +59,12 @@ void createProcessTree(int *data, int size, int pn, int startIndex, int depth, i
             close(pipefds[1]); // Close the write end
             exit(0); // Exit successfully
         } else { // Parent process
-            close(pipefds[1]); // Close the write end; parent won't write to pipe
+            close(pipefds[0]); // Close the read end; parent won't read from pipe
+            
+            // Send data to child
+            write(pipefds[1], data + startIndex + i * segmentSize, sizeof(int) * segmentSize);
+            close(pipefds[1]); // Close the write end
+
             if (!isBFS) {
                 // DFS: Wait for each child to complete
                 wait(NULL);
@@ -73,5 +83,3 @@ void createProcessTree(int *data, int size, int pn, int startIndex, int depth, i
 
     // Code to aggregate results and update globalMax, globalAvg, and totalHiddenKeys
 }
-
-// Main function and further setup are required to fully implement the project specifications.
