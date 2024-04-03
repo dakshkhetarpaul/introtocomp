@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -6,6 +5,7 @@
 #include <sys/types.h>
 #include "ProcessManagement.h"
 #include <limits.h>
+#include <string.h>
 
 void performWork(int *data, int segmentSize, int *max, double *avg, int *hiddenKeys) {
     // Placeholder for actual data processing
@@ -19,106 +19,83 @@ void performWork(int *data, int segmentSize, int *max, double *avg, int *hiddenK
     }
     *avg /= segmentSize;
 }
+
 void createProcessTree(int *data, int size, int pn, int startIndex, int depth, int isBFS,
                        int *globalMax, double *globalAvg, int *totalHiddenKeys) {
-    int segmentSize = size / pn;
-    if (size % pn != 0) segmentSize++;
+    double totalSum = 0.0;
+    int totalCount = 0;
+    pid_t pids[pn];
+    int segmentSizes[pn];
+    int pipefds[pn][2];
 
-    int childMax, childHiddenKeys;
-    double childAvg;
-    int *pipefds[2 * pn]; // Array to store file descriptors for all pipes
+    // Initialize the max value
+    *globalMax = INT_MIN;
 
-    // Open pipes for each child process
+    // Open pipes and fork child processes
     for (int i = 0; i < pn; ++i) {
-        pipefds[i] = (int *)malloc(2 * sizeof(int));
+        segmentSizes[i] = size / pn + (i < size % pn);
         if (pipe(pipefds[i]) == -1) {
             perror("pipe");
             exit(EXIT_FAILURE);
         }
-    }
 
-    // Spawn child processes
-    for (int i = 0; i < pn; ++i) {
-        if (startIndex + i * segmentSize >= size) break; // Adjust for the last segment
+        // Allocate and assign data for each segment
+        int startIndex = i * (size / pn) + (i < size % pn ? i : size % pn);
+        
 
-        pid_t pid = fork();
-        if (pid == -1) {
-            perror("fork");
-            exit(EXIT_FAILURE);
-        } else if (pid == 0) { // Child process
-            // Close reading ends for all pipes except the current one
-            for (int j = 0; j < pn; ++j) {
-                if (j != i) {
-                    close(pipefds[j][0]);
-                }
-                close(pipefds[j][1]); // Close writing ends for all pipes
-            }
-            
-            // Read data from the parent
-            int *segmentData = malloc(segmentSize * sizeof(int));
-            read(pipefds[i][0], segmentData, segmentSize * sizeof(int));
+        pids[i] = fork();
+        if (pids[i] == 0) {
+            // Child process
+            close(pipefds[i][0]); // Close read end of the pipe
+            int max = INT_MIN;
+            double avg = 0.0;
+            int hiddenKeys = 0;
 
-            // Perform actual work on the data segment
-            performWork(segmentData, segmentSize, &childMax, &childAvg, &childHiddenKeys);
-            free(segmentData);
+            // Perform work on the data segment
+            performWork(data + startIndex, segmentSizes[i], &max, &avg, &hiddenKeys);
 
             // Send results to parent
-            write(pipefds[i][1], &childMax, sizeof(childMax));
-            write(pipefds[i][1], &childAvg, sizeof(childAvg));
-            write(pipefds[i][1], &childHiddenKeys, sizeof(childHiddenKeys));
+            write(pipefds[i][1], &max, sizeof(max));
+            write(pipefds[i][1], &avg, sizeof(avg));
+            write(pipefds[i][1], &hiddenKeys, sizeof(hiddenKeys));
             
-            // Clean up and exit child process
-            close(pipefds[i][0]);
+            // Close write end and exit
             close(pipefds[i][1]);
             exit(0);
+        } else {
+            // Parent process
+            close(pipefds[i][1]); // Close write end of the pipe
         }
     }
 
-    // Parent process
+    // Parent process waits for child processes to finish and reads results
     for (int i = 0; i < pn; ++i) {
-        close(pipefds[i][1]); // Close writing end for parent
-    }
+        int status;
+        waitpid(pids[i], &status, 0); // Wait for the specific child process to finish
 
-    if (isBFS) {
-        // In BFS, wait and collect results after spawning all children
-        for (int i = 0; i < pn; ++i) {
-            // Wait for child process to complete
-            waitpid(-1, NULL, 0);
+        if (WIFEXITED(status)) {
+            int max;
+            double avg;
+            int hiddenKeys;
 
-            // Read results from child process
-            read(pipefds[i][0], &childMax, sizeof(childMax));
-            read(pipefds[i][0], &childAvg, sizeof(childAvg));
-            read(pipefds[i][0], &childHiddenKeys, sizeof(childHiddenKeys));
+            // Read results from the child process
+            read(pipefds[i][0], &max, sizeof(max));
+            read(pipefds[i][0], &avg, sizeof(avg));
+            read(pipefds[i][0], &hiddenKeys, sizeof(hiddenKeys));
 
             // Aggregate results
-            if (childMax > *globalMax) *globalMax = childMax;
-            *globalAvg += childAvg * segmentSize;
-            *totalHiddenKeys += childHiddenKeys;
+            if (max > *globalMax) *globalMax = max;
+            totalSum += avg * segmentSizes[i];
+            totalCount += segmentSizes[i];
+            *totalHiddenKeys += hiddenKeys;
 
-            // Clean up
+            // Close read end
             close(pipefds[i][0]);
-            free(pipefds[i]);
-        }
-    } else {
-        // In DFS, wait and collect results as each child completes
-        for (int i = 0; i < pn; ++i) {
-            waitpid(-1, NULL, 0);
-
-            // Read results from child process
-            read(pipefds[i][0], &childMax, sizeof(childMax));
-            read(pipefds[i][0], &childAvg, sizeof(childAvg));
-            read(pipefds[i][0], &childHiddenKeys, sizeof(childHiddenKeys));
-
-            // Same aggregation logic as above...
-
-            // Clean up
-            close(pipefds[i][0]);
-            free(pipefds[i]);
+        } else {
+            fprintf(stderr, "Child process exited with status %d\n", status);
         }
     }
 
     // Final calculation of the global average
-    *globalAvg /= size; // Divide the accumulated total by the number of elements to get the average
+    *globalAvg = totalSum / totalCount;
 }
-
-
