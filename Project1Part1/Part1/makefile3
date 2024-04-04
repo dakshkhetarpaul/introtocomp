@@ -1,0 +1,9 @@
+CC = gcc
+CFLAGS = -g -Wall -I.
+default: Proj1BFS
+Proj1BFS: Q3.o
+	$(CC) Q3.o -o Proj1BFS -lm
+Q3.o: Q3.c
+	$(CC) $(CFLAGS) -c Q3.c -lm
+clean:
+	rm *.o Proj1
